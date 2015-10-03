@@ -35,7 +35,7 @@ def AddAudioMenuItem(oc, titleString, rssfeedString):
 def GenerateAudioMenu(title, rssfeed):
     oc = ObjectContainer(title1=title)
     feed = RSS.FeedFromURL(rssfeed)
-    AddItemsToContainer(oc, feed)
+    AddItemsToContainer(oc, feed) #TODO could do a pagination, a feed can hold too many items to load quickly.
     return oc
 
 def AddItemsToContainer(oc, feed):
