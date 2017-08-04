@@ -20,44 +20,23 @@ def Start():
 def MainMenu():
     oc = ObjectContainer()
 
-    oc.add(DirectoryObject(
-        key=Callback(AudioList,
-            title='Aly & Fila - Future Sound Of Egypt', page=0,
-            rssfeed='http://www.fsoe-recordings.com/fsoepodcast/fsoepod.xml'),
-        title='Aly & Fila - Future Sound Of Egypt'))
-    oc.add(DirectoryObject(
-        key=Callback(AudioList,
-            title='International Departures Podcast with Myon & Shane 54', page=0,
-            rssfeed='http://internationaldepartures.podbean.com/feed/'),
-        title='International Departures Podcast with Myon & Shane 54'))
-    oc.add(DirectoryObject(
-        key=Callback(AudioList,
-            title='A State of Trance Official Podcast', page=0,
-            rssfeed='http://podcast.armadamusic.com/asot/podcast.xml'),
-        title='A State of Trance Official Podcast'))
-    oc.add(DirectoryObject(
-        key=Callback(AudioList,
-            title='Global DJ Broadcast', page=0,
-            rssfeed='http://feeds.feedburner.com/MarkusSchulzGlobalDJBroadcast?format=xml'),
-        title='Global DJ Broadcast'))
-    oc.add(DirectoryObject(
-        key=Callback(AudioList,
-            title='Paul van Dyk\'s VONYC Sessions Podcast', page=0,
-            rssfeed='http://podcast.paulvandyk.com/feed.xml'),
-        title='Paul van Dyk\'s VONYC Sessions Podcast'))
-    oc.add(DirectoryObject(
-        key=Callback(AudioList,
-            title='Perfecto Podcast: featuring Paul Oakenfold', page=0,
-            rssfeed='http://oakenfold.libsyn.com/rss'),
-        title='Perfecto Podcast: featuring Paul Oakenfold'))
-    oc.add(DirectoryObject(
-        key=Callback(AudioList,
-            title='Andy Moor\'s Moor Music Podcast', page=0,
-            rssfeed='http://www.andymoor.com/moormusic.rss'),
-        title='Andy Moor\'s Moor Music Podcast'))
+    oc.add(build_feed_directory('http://www.fsoe-recordings.com/fsoepodcast/fsoepod.xml', 'Aly & Fila - Future Sound Of Egypt'))
+    oc.add(build_feed_directory('http://internationaldepartures.podbean.com/feed/', 'International Departures Podcast with Myon & Shane 54'))
+    oc.add(build_feed_directory('http://podcast.armadamusic.com/asot/podcast.xml', 'A State of Trance Official Podcast'))
+    oc.add(build_feed_directory('http://feeds.feedburner.com/MarkusSchulzGlobalDJBroadcast?format=xml', 'Global DJ Broadcast'))
+    oc.add(build_feed_directory('http://podcast.paulvandyk.com/feed.xml', 'Paul van Dyk\'s VONYC Sessions Podcast'))
+    oc.add(build_feed_directory('http://oakenfold.libsyn.com/rss', 'Perfecto Podcast: featuring Paul Oakenfold'))
+    oc.add(build_feed_directory('http://www.andymoor.com/moormusic.rss', 'Andy Moor\'s Moor Music Podcast'))
     oc.add(PrefsObject(title='Preferences'))
 
     return oc
+
+def build_feed_directory(rssfeed, title):
+    return DirectoryObject(
+        key=Callback(AudioList,
+                     title=title, page=0,
+                     rssfeed=rssfeed),
+        title=title)
 
 ####################################################################################################
 @route(PREFIX + '/audiolist', page=int, count=int)
@@ -92,13 +71,7 @@ def AudioList(title, rssfeed, page, count=0, header=None, message=None):
     entry_list = feed.entries
     total_count = len(entry_list)
     total_pages = int(total_count/items_per_page) + 1
-    main_title = title
-    if not total_pages == total_count and total_count > items_per_page:
-        shift_page = page + 1
-        if shift_page < total_pages:
-            main_title = '%s | Page %i of %i' %(title, shift_page, total_pages)
-        elif shift_page == total_pages:
-            main_title = '%s | Page %i, Last Page' %(title, shift_page)
+    main_title = get_main_title(items_per_page, page, title, total_count, total_pages)
 
     oc = ObjectContainer(title2=main_title, header=header, message=message)
 
@@ -117,10 +90,7 @@ def AudioList(title, rssfeed, page, count=0, header=None, message=None):
     # setup pages after first page, but not last page
     elif count > items_per_page and page > 0:
         Log('entry list new count = %i' %count)
-        if page == 1:
-            start_num = items_per_page
-        else:
-            start_num = items_per_page * page
+        start_num = get_start_num(items_per_page, page)
         end_num = start_num + items_per_page
         next_pg = page + 1
         new_count = count - items_per_page
@@ -134,6 +104,40 @@ def AudioList(title, rssfeed, page, count=0, header=None, message=None):
     main_thumb = feed['feed']['image']['href']
 
     # parse entries for episodes and corresponding metadata
+    add_items_to_container(oc, entry_list, main_thumb, title)
+    # if no items on page, then go to next page and give a popup message
+    if not len(oc) > 0 and next_pg:
+        header = title
+        message = 'Skipping Page(s), No Valid Episode URL\'s'
+        return AudioList(title=title, rssfeed=rssfeed, page=next_pg, count=new_count, header=header, message=message)
+
+    if next_pg:
+        oc.add(NextPageObject(
+            key=Callback(AudioList, title=title, rssfeed=rssfeed, page=next_pg, count=new_count),
+            title='Next Page>>'))
+
+    return oc
+
+def get_start_num(items_per_page, page):
+    if page == 1:
+        start_num = items_per_page
+    else:
+        start_num = items_per_page * page
+    return start_num
+
+
+def get_main_title(items_per_page, page, title, total_count, total_pages):
+    main_title = title
+    if not total_pages == total_count and total_count > items_per_page:
+        shift_page = page + 1
+        if shift_page < total_pages:
+            main_title = '%s | Page %i of %i' % (title, shift_page, total_pages)
+        elif shift_page == total_pages:
+            main_title = '%s | Page %i, Last Page' % (title, shift_page)
+    return main_title
+
+
+def add_items_to_container(oc, entry_list, main_thumb, title):
     for item in entry_list:
         item_keys = item.keys()
         url = item.enclosures[0]['url']
@@ -186,7 +190,7 @@ def AudioList(title, rssfeed, page, count=0, header=None, message=None):
         else:
             summary = None
 
-        #leave as string, cannot propagate datetime objects between functions
+        # leave as string, cannot propagate datetime objects between functions
         originally_available_at = item.updated
         # ep duration in milliseconds
         duration = Datetime.MillisecondsFromString(item.itunes_duration)
@@ -195,25 +199,13 @@ def AudioList(title, rssfeed, page, count=0, header=None, message=None):
             'title': item_title, 'artist': artist, 'summary': summary, 'thumb': thumb,
             'oaa_date': originally_available_at, 'duration': duration, 'album': title,
             'genres': genres, 'url': url
-            }
+        }
 
         # www.moormusic.info URL is offline, they moved to moormusic.co, but not all ep are hosted
         # this will weed out the old URL host
         if not 'www.moormusic.info' in url:
             oc.add(CreateTrackObject(item_info=item_info))
 
-    # if no items on page, then go to next page and give a popup message
-    if not len(oc) > 0 and next_pg:
-        header = title
-        message = 'Skipping Page(s), No Valid Episode URL\'s'
-        return AudioList(title=title, rssfeed=rssfeed, page=next_pg, count=new_count, header=header, message=message)
-
-    if next_pg:
-        oc.add(NextPageObject(
-            key=Callback(AudioList, title=title, rssfeed=rssfeed, page=next_pg, count=new_count),
-            title='Next Page>>'))
-
-    return oc
 
 ####################################################################################################
 @route(PREFIX + '/create-track-object', item_info=dict)
