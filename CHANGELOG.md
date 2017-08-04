@@ -1,3 +1,11 @@
+# Commit 0d6109f
+## Fixed
+* [#5] Episode descriptions show HTML tags and HTML escaped characters
+
+## Added
+* [#2] Show images for feed and episodes
+* [#3] Pagination of feed items
+
 # Commit 1a8a432
 
 ## Test report  2015-10-04
