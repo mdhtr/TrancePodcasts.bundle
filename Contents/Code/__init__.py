@@ -28,7 +28,7 @@ def MainMenu():
     oc.add(DirectoryObject(
         key=Callback(AudioList,
             title='International Departures Podcast with Myon & Shane 54', page=0,
-            rssfeed='http://www.myonandshane54.com/id/idpodcast.xml'),
+            rssfeed='http://internationaldepartures.podbean.com/feed/'),
         title='International Departures Podcast with Myon & Shane 54'))
     oc.add(DirectoryObject(
         key=Callback(AudioList,
