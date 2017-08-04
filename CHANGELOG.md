@@ -1,3 +1,27 @@
+# Commit 00e0da7
+## Fixed
+* Obsolete feed url
+
+##Test report  2017-08-04
+
+### Environment
+
+* Plex Server Windows Version 1.7.5.4035 on Windows 10
+* Plex Web App Version 3.9.1 on Chrome 59.0.3071.115
+* Plex for Android 6.3.2.1332 on Android 5.0
+
+### Results
+
+| Channel | Web App Listing | Web App Playback | Android |
+| ------------- | ----------- | ----------- |----------- |
+| Aly & Fila - Future Sound Of Egypt | Working | Not working | Same as on Web App |
+| International Departures Podcast with Myon & Shane 54 | Working | Working | Same as on Web App |
+| A State of Trance Official Podcast | Working | Working | Same as on Web App |
+| Global DJ Broadcast with Markus Schulz | Working | Working | Same as on Web App |
+| Paul van Dyk's VONYC Sessions Podcast | Working | Working | Same as on Web App |
+| Perfecto Podcast: featuring Paul Oakenfold | Working | Working | Same as on Web App |
+| Andy Moor's Moor Music Podcast | Working |  Working | Same as on Web App |
+
 # Commit 0d6109f
 ## Fixed
 * [#5] Episode descriptions show HTML tags and HTML escaped characters
