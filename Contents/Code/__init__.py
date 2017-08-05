@@ -3,7 +3,7 @@ PREFIX = '/music/trancepodcasts'
 ART = "art-default.jpg"
 ICON = "icon-default.png"
 
-####################################################################################################
+
 def Start():
     ObjectContainer.title1 = TITLE
     ObjectContainer.art = R(ART)
@@ -15,15 +15,19 @@ def Start():
     VideoClipObject.art = R(ART)
     HTTP.CacheTime = CACHE_1HOUR
 
-####################################################################################################
+
 @handler(PREFIX, TITLE)
 def MainMenu():
     oc = ObjectContainer()
 
-    oc.add(build_feed_directory('http://www.fsoe-recordings.com/fsoepodcast/fsoepod.xml', 'Aly & Fila - Future Sound Of Egypt'))
-    oc.add(build_feed_directory('http://internationaldepartures.podbean.com/feed/', 'International Departures Podcast with Myon & Shane 54'))
-    oc.add(build_feed_directory('http://podcast.armadamusic.com/asot/podcast.xml', 'A State of Trance Official Podcast'))
-    oc.add(build_feed_directory('http://feeds.feedburner.com/MarkusSchulzGlobalDJBroadcast?format=xml', 'Global DJ Broadcast'))
+    oc.add(build_feed_directory('http://www.fsoe-recordings.com/fsoepodcast/fsoepod.xml',
+                                'Aly & Fila - Future Sound Of Egypt'))
+    oc.add(build_feed_directory('http://internationaldepartures.podbean.com/feed/',
+                                'International Departures Podcast with Myon & Shane 54'))
+    oc.add(build_feed_directory('http://podcast.armadamusic.com/asot/podcast.xml',
+                                'A State of Trance Official Podcast'))
+    oc.add(build_feed_directory('http://feeds.feedburner.com/MarkusSchulzGlobalDJBroadcast?format=xml',
+                                'Global DJ Broadcast'))
     oc.add(build_feed_directory('http://podcast.paulvandyk.com/feed.xml', 'Paul van Dyk\'s VONYC Sessions Podcast'))
     oc.add(build_feed_directory('http://oakenfold.libsyn.com/rss', 'Perfecto Podcast: featuring Paul Oakenfold'))
     oc.add(build_feed_directory('http://www.andymoor.com/moormusic.rss', 'Andy Moor\'s Moor Music Podcast'))
@@ -31,113 +35,112 @@ def MainMenu():
 
     return oc
 
+
 def build_feed_directory(rssfeed, title):
     return DirectoryObject(
         key=Callback(AudioList,
-                     title=title, page=0,
+                     title=title,
                      rssfeed=rssfeed),
         title=title)
 
-####################################################################################################
-@route(PREFIX + '/audiolist', page=int, count=int)
-def AudioList(title, rssfeed, page, count=0, header=None, message=None):
-    # setup items_per_page based off prefs
-    page_count = Prefs['page_count']
-    if page_count == 'All':
-        items_per_page = 1
-        count_prefs = False
-    else:
-        count_prefs = True
-        items_per_page = int(page_count)
 
-    if page == 0:
-        # get RSS as feed object, using feedparser
-        feed = RSS.FeedFromURL(rssfeed)
+@route(PREFIX + '/audiolist', page=int)
+def AudioList(title, rssfeed, page=0, header=None, message=None):
+    try:
+        feed = get_feed(title, rssfeed, page)
+    except RuntimeError, e:
+        return MessageContainer(e.message)
 
-        # check if the url is under Maintenance
-        check_text = feed['feed']['summary']
-        if 'Web Maintenance' in check_text:
-            return MessageContainer('Warning', '%s Currently under "Web Maintenance"' %rssfeed)
-        else:
-            Log('saving RSS Feed object to Data')
-            # save feed as python object so we can re-call feed for next page
-            Data.SaveObject(title, feed)
-    else:
-        Log('loading RSS Feed object from Data')
-        # load in our saved feed object for next page
-        feed = Data.LoadObject(title)
-
-    # setup container title
-    entry_list = feed.entries
-    total_count = len(entry_list)
-    total_pages = int(total_count/items_per_page) + 1
-    main_title = get_main_title(items_per_page, page, title, total_count, total_pages)
-
-    oc = ObjectContainer(title2=main_title, header=header, message=message)
-
-    next_pg = None
-    # Get Sublist of entry_list based on paging
-    if page == 0:
-        count = total_count
-        Log('entry list total count = %i' %total_count)
-        # setup first page
-        # check Prefs['page_count'] for valid #
-        #   if "All" and not #, then return entire list and no next pg container
-        if total_count > items_per_page and count_prefs:
-            next_pg = page + 1
-            new_count = total_count - items_per_page
-            entry_list = entry_list[0:items_per_page]
-    # setup pages after first page, but not last page
-    elif count > items_per_page and page > 0:
-        Log('entry list new count = %i' %count)
-        start_num = get_start_num(items_per_page, page)
-        end_num = start_num + items_per_page
-        next_pg = page + 1
-        new_count = count - items_per_page
-        entry_list = entry_list[start_num:end_num]
-    # setup last page
-    elif page > 0:
-        Log('string cut = [%i:%i]' %(count, total_count))
-        entry_list = entry_list[total_count - count:total_count]
-
-    # pull out thumb for global settings
+    items_per_page = get_items_per_page()
+    entries = feed.entries
+    entries_length = len(entries)
+    current_page_number = page + 1
+    pages_length = get_pages_length(entries_length, items_per_page)
+    page_title = get_page_title(title, current_page_number, pages_length)
+    next_page = page + 1
+    is_not_last_page = next_page < pages_length
+    entry_sublist = get_entry_sublist(entries, items_per_page, page)
     main_thumb = feed['feed']['image']['href']
 
-    # parse entries for episodes and corresponding metadata
-    add_items_to_container(oc, entry_list, main_thumb, title)
-    # if no items on page, then go to next page and give a popup message
-    if not len(oc) > 0 and next_pg:
-        header = title
-        message = 'Skipping Page(s), No Valid Episode URL\'s'
-        return AudioList(title=title, rssfeed=rssfeed, page=next_pg, count=new_count, header=header, message=message)
+    oc = ObjectContainer(title2=page_title, header=header, message=message)
+    add_entries_to_container(oc, entry_sublist, main_thumb, title)
 
-    if next_pg:
-        oc.add(NextPageObject(
-            key=Callback(AudioList, title=title, rssfeed=rssfeed, page=next_pg, count=new_count),
-            title='Next Page>>'))
+    has_no_items_on_page = len(oc) == 0
+    if has_no_items_on_page and is_not_last_page:
+        return continue_to_next_page_with_warning(title, rssfeed, next_page)
+
+    if is_not_last_page:
+        oc.add(create_next_page_object(title, rssfeed, next_page))
 
     return oc
 
-def get_start_num(items_per_page, page):
-    if page == 1:
-        start_num = items_per_page
+
+def get_feed(title, rssfeed, page):
+    if page == 0:
+        feed = RSS.FeedFromURL(rssfeed)
+        # Log('parsed RSS Feed')
+        # check if the url is under Maintenance
+        check_text = feed['feed']['summary']
+        # get RSS as feed object, using feedparser
+        if 'Web Maintenance' in check_text:
+            raise RuntimeError('Warning', '%s Currently under "Web Maintenance"' % rssfeed)
+        else:
+            # Log('saving RSS Feed object to Data')
+            # save feed as python object so we can re-call feed for next page
+            Data.SaveObject(title, feed)
     else:
-        start_num = items_per_page * page
-    return start_num
+        # if Data.Exists(title):
+        # Log('loading RSS Feed object from Data')
+        # load in our saved feed object for next page
+        feed = Data.LoadObject(title)
+    return feed
 
 
-def get_main_title(items_per_page, page, title, total_count, total_pages):
-    main_title = title
-    if not total_pages == total_count and total_count > items_per_page:
-        shift_page = page + 1
-        if shift_page < total_pages:
-            main_title = '%s | Page %i of %i' % (title, shift_page, total_pages)
-        elif shift_page == total_pages:
-            main_title = '%s | Page %i, Last Page' % (title, shift_page)
-    return main_title
+def get_items_per_page():
+    if Prefs['items_per_page'] is not "All":
+        items_per_page = int(Prefs['items_per_page'])
+    else:
+        items_per_page = "All"
+    return items_per_page
 
 
-def add_items_to_container(oc, entry_list, main_thumb, title):
+def get_pages_length(entries_length, items_per_page):
+    # NameError: global name 'type' is not defined for: if type(items_per_page) is int
+    if items_per_page is not "All":
+        return entries_length / items_per_page + (1 if entries_length % items_per_page > 0 else 0)
+    else:
+        return 1
+
+
+def get_page_title(title, current_page_number, total_pages_length):
+    page_title = '%s | Page %i of %i' % (title, current_page_number, total_pages_length)
+    return page_title
+
+
+def get_entry_sublist(entries, items_per_page, page):
+    start_num = get_start_num(items_per_page, page)
+    end_num = get_end_num(start_num, items_per_page, len(entries))
+    Log('Start: %s, End: %s', start_num, end_num)
+    entry_sublist = entries[start_num:end_num]
+    return entry_sublist
+
+
+def get_start_num(items_per_page, page):
+    if items_per_page is not "All":
+        return page * items_per_page
+    else:
+        return 0
+
+
+def get_end_num(start_num, items_per_page, entries_length):
+    if items_per_page is not "All":
+        end_num_candidate = start_num + items_per_page
+        if end_num_candidate < entries_length:
+            return end_num_candidate
+    return entries_length
+
+
+def add_entries_to_container(oc, entry_list, main_thumb, title):
     for item in entry_list:
         item_keys = item.keys()
         url = item.enclosures[0]['url']
@@ -203,11 +206,23 @@ def add_items_to_container(oc, entry_list, main_thumb, title):
 
         # www.moormusic.info URL is offline, they moved to moormusic.co, but not all ep are hosted
         # this will weed out the old URL host
-        if not 'www.moormusic.info' in url:
+        if 'www.moormusic.info' not in url:
             oc.add(CreateTrackObject(item_info=item_info))
 
 
-####################################################################################################
+def continue_to_next_page_with_warning(title, rssfeed, next_page):
+    return AudioList(
+        title=title, rssfeed=rssfeed, page=next_page,
+        header=title,
+        message='Skipping Page(s), No Valid Episode URL\'s')
+
+
+def create_next_page_object(title, rssfeed, next_page):
+    return NextPageObject(
+        key=Callback(AudioList, title=title, rssfeed=rssfeed, page=next_page),
+        title='Next Page>>')
+
+
 @route(PREFIX + '/create-track-object', item_info=dict)
 def CreateTrackObject(item_info, include_container=False):
 
