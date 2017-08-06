@@ -20,7 +20,7 @@ def Start():
 def MainMenu():
     oc = ObjectContainer()
 
-    oc.add(build_feed_directory('http://www.fsoe-recordings.com/fsoepodcast/fsoepod.xml',
+    oc.add(build_feed_directory('http://podcast.futuresoundofegypt.com/fsoepodcast.xml',
                                 'Aly & Fila - Future Sound Of Egypt'))
     oc.add(build_feed_directory('http://internationaldepartures.podbean.com/feed/',
                                 'International Departures Podcast with Myon & Shane 54'))
