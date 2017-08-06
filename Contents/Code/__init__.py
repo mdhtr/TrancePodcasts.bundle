@@ -142,72 +142,86 @@ def get_end_num(start_num, items_per_page, entries_length):
 
 def add_entries_to_container(oc, entry_list, main_thumb, title):
     for item in entry_list:
-        item_keys = item.keys()
         url = item.enclosures[0]['url']
-        title_text = item.title
-        item_title = title_text.replace(title, '').lstrip(': ')
-
-        # clean episode titles
-        if title == 'Perfecto Podcast: featuring Paul Oakenfold':
-            if 'Paul Oakenfold:' in item_title:
-                test = Regex('(Episode\ .+)').search(item_title)
-                if test:
-                    item_title = test.group(1).strip()
-            else:
-                item_title = item_title.replace('Planet Perfecto Podcast', 'Episode').strip()
-        elif title == 'Aly & Fila - Future Sound Of Egypt':
-            item_title = 'Episode ' + item_title
-        elif title == 'Andy Moor\'s Moor Music Podcast':
-            test = Regex('(Episode\ .+)').search(item_title)
-            if test:
-                item_title = test.group(1).strip()
-        elif title == 'Paul van Dyk\'s VONYC Sessions Podcast':
-            test = Regex('(\d+)').search(item_title)
-            if test:
-                item_title = 'Episode ' + test.group(1).lstrip('0 ').strip()
-
-        # find ep thumb, if not then use global thumb
-        if 'image' in item_keys:
-            thumb = item['image']['href']
-        else:
-            thumb = main_thumb
-
-        # setup artist and genres if included
-        artist = None
-        genres = []
-        if 'author' in item_keys:
-            artist = item['author']
-            if title == 'Paul van Dyk\'s VONYC Sessions Podcast':
-                test = Regex('(.*)\(').search(artist)
-                if test:
-                    artist = test.group(1).strip()
-
-        if 'tags' in item_keys:
-            genres = [t['term'] for t in item['tags']]
-
-        # test summary for html format
-        summary_text = item.summary
-        if summary_text:
-            summary_node = HTML.ElementFromString(summary_text)
-            summary = String.StripTags(summary_node.text_content())
-        else:
-            summary = None
-
-        # leave as string, cannot propagate datetime objects between functions
-        originally_available_at = item.updated
-        # ep duration in milliseconds
-        duration = Datetime.MillisecondsFromString(item.itunes_duration)
-
-        item_info = {
-            'title': item_title, 'artist': artist, 'summary': summary, 'thumb': thumb,
-            'oaa_date': originally_available_at, 'duration': duration, 'album': title,
-            'genres': genres, 'url': url
-        }
-
         # www.moormusic.info URL is offline, they moved to moormusic.co, but not all ep are hosted
         # this will weed out the old URL host
         if 'www.moormusic.info' not in url:
-            oc.add(CreateTrackObject(item_info=item_info))
+            oc.add(CreateTrackObject(item_info={
+                'title': get_item_title(item, title),
+                'artist': get_artist(item, title),
+                'summary': get_summary(item),
+                'thumb': get_thumb(item, main_thumb),
+                'oaa_date': item.updated,  # leave as string, cannot propagate datetime objects between functions
+                'duration': (Datetime.MillisecondsFromString(item.itunes_duration)),
+                'album': title,
+                'genres': get_genres(item),
+                'url': url
+            }))
+
+
+def get_item_title(item, title):
+    item_title = item.title.replace(title, '').lstrip(': ')
+    # clean episode titles
+    if title == 'Perfecto Podcast: featuring Paul Oakenfold':
+        if 'Paul Oakenfold:' in item_title:
+            test = Regex('(Episode\ .+)').search(item_title)
+            if test:
+                item_title = test.group(1).strip()
+        else:
+            item_title = item_title.replace('Planet Perfecto Podcast', 'Episode').strip()
+    elif title == 'Aly & Fila - Future Sound Of Egypt':
+        item_title = 'Episode ' + item_title
+    elif title == 'Andy Moor\'s Moor Music Podcast':
+        test = Regex('(Episode\ .+)').search(item_title)
+        if test:
+            item_title = test.group(1).strip()
+    elif title == 'Paul van Dyk\'s VONYC Sessions Podcast':
+        test = Regex('(\d+)').search(item_title)
+        if test:
+            item_title = 'Episode ' + test.group(1).lstrip('0 ').strip()
+
+    return item_title
+
+
+def get_artist(item, title):
+    artist = None
+    if 'author' in item.keys():
+        artist = item['author']
+        if title == 'Paul van Dyk\'s VONYC Sessions Podcast':
+            test = Regex('(.*)\(').search(artist)
+            if test:
+                artist = test.group(1).strip()
+    return artist
+
+
+def get_summary(item):
+    # test summary for html format
+    summary_text = item.summary
+    if summary_text:
+        summary_node = HTML.ElementFromString(summary_text)
+        summary = String.StripTags(summary_node.text_content())
+    else:
+        summary = None
+
+    return summary
+
+
+def get_thumb(item, main_thumb):
+    # find ep thumb, if not then use global thumb
+    if 'image' in item.keys():
+        thumb = item['image']['href']
+    else:
+        thumb = main_thumb
+
+    return thumb
+
+
+def get_genres(item):
+    genres = []
+    if 'tags' in item.keys():
+        genres = [t['term'] for t in item['tags']]
+
+    return genres
 
 
 def continue_to_next_page_with_warning(title, rssfeed, next_page):
@@ -225,7 +239,6 @@ def create_next_page_object(title, rssfeed, next_page):
 
 @route(PREFIX + '/create-track-object', item_info=dict)
 def CreateTrackObject(item_info, include_container=False):
-
     if item_info['url'].endswith('.mp3'):
         container = Container.MP3
         audio_codec = AudioCodec.MP3
@@ -258,9 +271,9 @@ def CreateTrackObject(item_info, include_container=False):
                 audio_codec=audio_codec,
                 audio_channels=2,
                 optimized_for_streaming=True if Client.Product != 'Plex Web' else False
-                )
-            ]
-        )
+            )
+        ]
+    )
 
     if include_container:
         return ObjectContainer(objects=[track_object])
